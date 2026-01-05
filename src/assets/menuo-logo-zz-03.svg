@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 130">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #028cf3;
+      }
+
+      .cls-2 {
+        fill: #2d2d2d;
+        font-family: Inter-Bold, Inter;
+        font-size: 122px;
+        font-variation-settings: 'opsz' 14, 'wght' 700;
+        font-weight: 700;
+      }
+    </style>
+  </defs>
+  <g>
+    <polygon class="cls-1" points="92.02 98.37 57.26 108.3 57.26 19.39 90.53 34.79 92.02 98.37"/>
+    <polygon class="cls-1" points="93.02 97.87 127.79 107.8 127.79 18.89 94.51 34.29 93.02 97.87"/>
+  </g>
+  <text class="cls-2" transform="translate(135.23 95.93)"><tspan x="0" y="0">menup</tspan></text>
+</svg>

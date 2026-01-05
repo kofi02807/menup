@@ -1,21 +1,28 @@
 // src/pages/MenuEditorPage.tsx
-export type MenuItem = {
+
+import { FormEvent, useEffect, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
+import { useRestaurant } from "../hooks/useRestaurant";
+
+type MenuItem = {
   id: string;
   name: string;
-  description?: string;
+  description?: string | null;
   price: number;
   category: string;
-  isAvailable: boolean;
+  is_available: boolean;
+  is_published: boolean;
 };
 
-// src/pages/MenuEditorPage.tsx
-import { FormEvent, useState } from "react";
-import { v4 as uuid } from "uuid";
-
-
-
 const MenuEditorPage = () => {
-  const [items, setItems] = useState<MenuItem[]>([]);
+  const { restaurant, loading } = useRestaurant();
+
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -24,19 +31,61 @@ const MenuEditorPage = () => {
     isAvailable: true,
   });
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
+  // 🔹 Fetch ONLY draft menu items
+  useEffect(() => {
+    if (!restaurant) return;
 
-    const newItem: MenuItem = {
-      id: uuid(),
-      name: form.name,
-      description: form.description,
-      price: Number(form.price),
-      category: form.category || "Uncategorized",
-      isAvailable: form.isAvailable,
+    const fetchMenuItems = async () => {
+      const { data, error } = await supabase
+        .from("menu_items")
+        .select("*")
+        .eq("restaurant_id", restaurant.id)
+        .eq("is_published", false)
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setMenuItems(data);
+      }
     };
 
-    setItems((prev) => [...prev, newItem]);
+    fetchMenuItems();
+  }, [restaurant]);
+
+  // 🔹 Guards
+  if (loading) return <p>Loading...</p>;
+  if (!restaurant) return <p>No restaurant found for this account.</p>;
+
+  // 🔹 Add menu item (draft)
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+
+    const { data, error } = await supabase
+      .from("menu_items")
+      .insert({
+        restaurant_id: restaurant.id,
+        name: form.name,
+        description: form.description || null,
+        price: Number(form.price),
+        category: form.category || "Uncategorized",
+        is_available: form.isAvailable,
+        is_published: false,
+      })
+      .select()
+      .single();
+
+    setSaving(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    if (data) {
+      setMenuItems((prev) => [data, ...prev]);
+    }
+
     setForm({
       name: "",
       description: "",
@@ -46,21 +95,59 @@ const MenuEditorPage = () => {
     });
   };
 
-  const handleDelete = (id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
+  // 🔹 Publish ALL draft items
+  const publishMenu = async () => {
+    if (!restaurant || menuItems.length === 0) return;
+
+    setPublishing(true);
+
+    const { error } = await supabase
+      .from("menu_items")
+      .update({ is_published: true })
+      .eq("restaurant_id", restaurant.id)
+      .eq("is_published", false);
+
+    setPublishing(false);
+
+    if (error) {
+      alert("Failed to publish menu");
+      return;
+    }
+
+    setMenuItems([]);
+    alert("Menu published successfully 🎉");
+  };
+
+  // 🔹 Copy public menu link
+  const copyMenuLink = async () => {
+    if (!restaurant) return;
+
+    const url = `${window.location.origin}/menu/${restaurant.slug}`;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      alert("Failed to copy link");
+    }
   };
 
   return (
     <div className="row">
-      <div className="col-lg-5 mb-4">
+      {/* ADD MENU ITEM */}
+      <div className="col-lg-6">
         <h3 className="mb-3">Add Menu Item</h3>
+
         <form onSubmit={handleSubmit} className="card card-body">
           <div className="mb-3">
             <label className="form-label">Name *</label>
             <input
               className="form-control"
               value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, name: e.target.value })
+              }
               required
             />
           </div>
@@ -78,14 +165,14 @@ const MenuEditorPage = () => {
           </div>
 
           <div className="mb-3">
-            <label className="form-label">Price (GHS)</label>
+            <label className="form-label">Price (GHS) *</label>
             <input
               type="number"
-              min="0"
-              step="0.01"
               className="form-control"
               value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, price: e.target.value })
+              }
               required
             />
           </div>
@@ -95,7 +182,9 @@ const MenuEditorPage = () => {
             <input
               className="form-control"
               value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, category: e.target.value })
+              }
               placeholder="Starters, Mains, Drinks..."
             />
           </div>
@@ -115,55 +204,66 @@ const MenuEditorPage = () => {
             </label>
           </div>
 
-          <button type="submit" className="btn btn-success">
-            Add Item
+          <button
+            className="btn btn-success w-100"
+            disabled={saving}
+          >
+            {saving ? "Saving..." : "Add Item"}
           </button>
+
+          {error && <p className="text-danger mt-3">{error}</p>}
         </form>
       </div>
 
-      <div className="col-lg-7">
-        <h3 className="mb-3">Current Menu</h3>
-        {items.length === 0 ? (
-          <p>No items yet. Add your first dish on the left.</p>
-        ) : (
-          <div className="table-responsive">
-            <table className="table table-striped align-middle">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Category</th>
-                  <th>Price</th>
-                  <th>Available</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.name}</td>
-                    <td>{item.category}</td>
-                    <td>GHS {item.price.toFixed(2)}</td>
-                    <td>{item.isAvailable ? "Yes" : "No"}</td>
-                    <td className="text-end">
-                      <button
-                        className="btn btn-sm btn-outline-danger"
-                        onClick={() => handleDelete(item.id)}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {/* DRAFT MENU ITEMS */}
+      <div className="col-lg-6">
+        <h3 className="mb-3">Draft Menu Items</h3>
+
+        <div className="d-flex gap-2 mb-3">
+          <button
+            className="btn btn-primary"
+            onClick={publishMenu}
+            disabled={publishing || menuItems.length === 0}
+          >
+            {publishing ? "Publishing..." : "Publish Menu"}
+          </button>
+
+          <button
+            className="btn btn-outline-secondary"
+            onClick={copyMenuLink}
+          >
+            {copied ? "Copied!" : "Copy Menu Link"}
+          </button>
+        </div>
+
+        {menuItems.length === 0 && (
+          <p className="text-muted">No draft items.</p>
         )}
+
+        <ul className="list-group">
+          {menuItems.map((item) => (
+            <li key={item.id} className="list-group-item">
+              <div className="d-flex justify-content-between">
+                <strong>{item.name}</strong>
+                <span>GHS {item.price}</span>
+              </div>
+
+              {item.description && (
+                <small className="text-muted d-block">
+                  {item.description}
+                </small>
+              )}
+
+              <small className="text-muted">
+                {item.category || "Uncategorized"} •{" "}
+                {item.is_available ? "Available" : "Unavailable"}
+              </small>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
 };
 
 export default MenuEditorPage;
-
-
-

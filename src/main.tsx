@@ -1,20 +1,11 @@
-// src/main.tsx
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
 import App from "./App";
-
-// ✅ You deleted index.css, so don't import it.
-// ✅ Global Bootstrap styles
 import "bootstrap/dist/css/bootstrap.min.css";
-import "bootstrap/dist/js/bootstrap.bundle.min.js";
 
-ReactDOM.createRoot(
-  document.getElementById("root") as HTMLElement
-).render(
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <App />
   </React.StrictMode>
 );
