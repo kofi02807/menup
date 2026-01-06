@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useRestaurant } from "../hooks/useRestaurant";
 import MenuPreview from "../components/MenuPreview";
 import { QRCodeCanvas } from "qrcode.react";
+import logo from "../assets/menuo-logo-zz-03.svg"; // adjust if needed
 
 type MenuItem = {
   id: string;
@@ -39,7 +40,6 @@ const MenuEditorPage = () => {
     if (!restaurant) return;
 
     const fetchMenuItems = async () => {
-      // Drafts
       const { data: drafts } = await supabase
         .from("menu_items")
         .select("*")
@@ -47,7 +47,6 @@ const MenuEditorPage = () => {
         .eq("is_published", false)
         .order("created_at", { ascending: false });
 
-      // Published
       const { data: published } = await supabase
         .from("menu_items")
         .select("*")
@@ -69,7 +68,7 @@ const MenuEditorPage = () => {
 
   const publicMenuUrl = `${window.location.origin}/menu/${restaurant.slug}`;
 
-  /* ---------------- ADD MENU ITEM (DRAFT) ---------------- */
+  /* ---------------- ADD MENU ITEM ---------------- */
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -133,7 +132,6 @@ const MenuEditorPage = () => {
     setDraftItems([]);
     alert("Menu published successfully 🎉");
 
-    // Refresh published preview
     const { data: published } = await supabase
       .from("menu_items")
       .select("*")
@@ -159,13 +157,33 @@ const MenuEditorPage = () => {
   /* ---------------- UI ---------------- */
 
   return (
-    <>
-      <div className="row">
-        {/* ADD MENU ITEM */}
-        <div className="col-lg-6">
-          <h3 className="mb-3">Add Menu Item</h3>
+    <div className="container py-4">
+      {/* BRAND HEADER */}
+      <div className="d-flex align-items-center mb-4">
+        <img
+          src={logo}
+          alt="Menup"
+          style={{ height: 32 }}
+          className="me-3"
+        />
+        <div>
+          <h4 className="mb-0 text-primary">Menu Editor</h4>
+          <small className="text-muted">
+            Create, preview & share your restaurant menu
+          </small>
+        </div>
+      </div>
 
-          <form onSubmit={handleSubmit} className="card card-body">
+      {/* EDITOR SECTION */}
+      <div className="row justify-content-center">
+        {/* ADD MENU ITEM */}
+        <div className="col-lg-5">
+          <h5 className="mb-3">Add Menu Item</h5>
+
+          <form
+            onSubmit={handleSubmit}
+            className="card card-body shadow-sm"
+          >
             <div className="mb-3">
               <label className="form-label">Name *</label>
               <input
@@ -242,8 +260,8 @@ const MenuEditorPage = () => {
         </div>
 
         {/* DRAFT ITEMS */}
-        <div className="col-lg-6">
-          <h3 className="mb-3">Draft Menu Items</h3>
+        <div className="col-lg-5">
+          <h5 className="mb-3">Draft Menu Items</h5>
 
           <div className="d-flex gap-2 mb-3">
             <button
@@ -266,7 +284,7 @@ const MenuEditorPage = () => {
             <p className="text-muted">No draft items.</p>
           )}
 
-          <ul className="list-group">
+          <ul className="list-group shadow-sm">
             {draftItems.map((item) => (
               <li key={item.id} className="list-group-item">
                 <div className="d-flex justify-content-between">
@@ -291,37 +309,42 @@ const MenuEditorPage = () => {
       </div>
 
       {/* PREVIEW + SHARE */}
-      <div className="mt-5">
-        <h3 className="mb-3">Menu Preview (What Customers See)</h3>
+      <div className="mt-5 pt-4 border-top">
+        <h4 className="mb-3 text-center">
+          Menu Preview (What Customers See)
+        </h4>
 
         {publishedItems.length === 0 ? (
-          <p className="text-muted">
+          <p className="text-muted text-center">
             No published items yet. Publish your menu to see a preview.
           </p>
         ) : (
-          <MenuPreview
-            restaurantName={restaurant.name}
-            restaurantDescription={restaurant.description}
-            menuItems={publishedItems}
-          />
+          <div className="d-flex justify-content-center">
+            <MenuPreview
+              restaurantName={restaurant.name}
+              restaurantDescription={restaurant.description}
+              menuItems={publishedItems}
+            />
+          </div>
         )}
 
-        <div className="mt-4">
-          <h5>Share Your Menu</h5>
-
-          <div className="d-flex gap-3 align-items-center flex-wrap">
-            <button
-              className="btn btn-outline-primary"
-              onClick={copyMenuLink}
-            >
-              Copy Menu Link
-            </button>
+        <div className="mt-4 d-flex justify-content-center">
+          <div className="p-3 border rounded d-flex gap-4 align-items-center flex-wrap">
+            <div>
+              <h6 className="text-muted mb-2">Share your menu</h6>
+              <button
+                className="btn btn-outline-primary"
+                onClick={copyMenuLink}
+              >
+                Copy Menu Link
+              </button>
+            </div>
 
             <QRCodeCanvas value={publicMenuUrl} size={140} />
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
