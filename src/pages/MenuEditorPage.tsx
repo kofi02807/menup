@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useRestaurant } from "../hooks/useRestaurant";
 import MenuPreview from "../components/MenuPreview";
@@ -25,7 +25,8 @@ const MenuEditorPage = () => {
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  const qrRef = useRef<HTMLCanvasElement | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -73,9 +74,8 @@ const MenuEditorPage = () => {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setError(null);
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("menu_items")
       .insert({
         restaurant_id: restaurant.id,
@@ -90,11 +90,6 @@ const MenuEditorPage = () => {
       .single();
 
     setSaving(false);
-
-    if (error) {
-      setError(error.message);
-      return;
-    }
 
     if (data) setDraftItems((prev) => [data, ...prev]);
 
@@ -114,21 +109,14 @@ const MenuEditorPage = () => {
 
     setPublishing(true);
 
-    const { error } = await supabase
+    await supabase
       .from("menu_items")
       .update({ is_published: true })
       .eq("restaurant_id", restaurant.id)
       .eq("is_published", false);
 
     setPublishing(false);
-
-    if (error) {
-      alert("Failed to publish menu");
-      return;
-    }
-
     setDraftItems([]);
-    alert("Menu published successfully 🎉");
 
     const { data } = await supabase
       .from("menu_items")
@@ -139,15 +127,13 @@ const MenuEditorPage = () => {
     setPublishedItems(data || []);
   };
 
-  /* ---------------- EDIT / HIDE LOGIC ---------------- */
+  /* ---------------- EDIT / HIDE ---------------- */
 
   const toggleAvailability = async (item: MenuItem) => {
-    const { error } = await supabase
+    await supabase
       .from("menu_items")
       .update({ is_available: !item.is_available })
       .eq("id", item.id);
-
-    if (error) return alert("Failed to update item");
 
     setPublishedItems((prev) =>
       prev.map((i) =>
@@ -161,7 +147,7 @@ const MenuEditorPage = () => {
   const saveEdit = async () => {
     if (!editingItem) return;
 
-    const { error } = await supabase
+    await supabase
       .from("menu_items")
       .update({
         name: editingItem.name,
@@ -170,8 +156,6 @@ const MenuEditorPage = () => {
         category: editingItem.category,
       })
       .eq("id", editingItem.id);
-
-    if (error) return alert("Failed to save changes");
 
     setPublishedItems((prev) =>
       prev.map((i) =>
@@ -182,12 +166,22 @@ const MenuEditorPage = () => {
     setEditingItem(null);
   };
 
-  /* ---------------- COPY LINK ---------------- */
+  /* ---------------- COPY & DOWNLOAD QR ---------------- */
 
   const copyMenuLink = async () => {
     await navigator.clipboard.writeText(publicMenuUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const downloadQRCode = () => {
+    if (!qrRef.current) return;
+
+    const image = qrRef.current.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = image;
+    link.download = `${restaurant.slug}-menu-qr.png`;
+    link.click();
   };
 
   /* ---------------- UI ---------------- */
@@ -251,7 +245,10 @@ const MenuEditorPage = () => {
         <h4>Published Menu Items</h4>
         <ul className="list-group">
           {publishedItems.map((item) => (
-            <li key={item.id} className="list-group-item d-flex justify-content-between">
+            <li
+              key={item.id}
+              className="list-group-item d-flex justify-content-between align-items-center"
+            >
               <div>
                 <strong>{item.name}</strong> — ₵{item.price}
                 {!item.is_available && (
@@ -259,10 +256,16 @@ const MenuEditorPage = () => {
                 )}
               </div>
               <div className="d-flex gap-2">
-                <button className="btn btn-sm btn-outline-primary" onClick={() => setEditingItem(item)}>
+                <button
+                  className="btn btn-sm btn-outline-primary"
+                  onClick={() => setEditingItem(item)}
+                >
                   Edit
                 </button>
-                <button className="btn btn-sm btn-outline-warning" onClick={() => toggleAvailability(item)}>
+                <button
+                  className="btn btn-sm btn-outline-warning"
+                  onClick={() => toggleAvailability(item)}
+                >
                   {item.is_available ? "Hide" : "Show"}
                 </button>
               </div>
@@ -279,11 +282,23 @@ const MenuEditorPage = () => {
           menuItems={publishedItems.filter((i) => i.is_available)}
         />
 
-        <div className="mt-3 d-flex justify-content-center gap-4">
+        <div className="mt-3 d-flex justify-content-center gap-3 flex-wrap">
           <button className="btn btn-outline-primary" onClick={copyMenuLink}>
             {copied ? "Copied!" : "Copy Menu Link"}
           </button>
-          <QRCodeCanvas value={publicMenuUrl} size={140} />
+
+          <button
+            className="btn btn-outline-success"
+            onClick={downloadQRCode}
+          >
+            Download QR Code
+          </button>
+
+          <QRCodeCanvas
+            value={publicMenuUrl}
+            size={140}
+            ref={qrRef}
+          />
         </div>
       </div>
 
@@ -294,7 +309,10 @@ const MenuEditorPage = () => {
             <div className="modal-content">
               <div className="modal-header">
                 <h5>Edit Item</h5>
-                <button className="btn-close" onClick={() => setEditingItem(null)} />
+                <button
+                  className="btn-close"
+                  onClick={() => setEditingItem(null)}
+                />
               </div>
               <div className="modal-body">
                 <input className="form-control mb-2"
@@ -317,10 +335,16 @@ const MenuEditorPage = () => {
                 />
               </div>
               <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setEditingItem(null)}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setEditingItem(null)}
+                >
                   Cancel
                 </button>
-                <button className="btn btn-primary" onClick={saveEdit}>
+                <button
+                  className="btn btn-primary"
+                  onClick={saveEdit}
+                >
                   Save
                 </button>
               </div>
