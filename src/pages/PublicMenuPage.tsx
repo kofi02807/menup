@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import MenuPreview from "../components/MenuPreview";
+import menupLogo from "../assets/menuo-logo-zz-03.svg";
 
 const PublicMenuPage = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -47,11 +48,34 @@ const PublicMenuPage = () => {
   if (error) return <p style={{ padding: 16 }}>{error}</p>;
 
   return (
-    <MenuPreview
-      restaurantName={restaurant.name}
-      restaurantDescription={restaurant.description}
-      menuItems={menuItems}
-    />
+    <div>
+      <MenuPreview
+        restaurantName={restaurant.name}
+        restaurantDescription={restaurant.description}
+        menuItems={menuItems}
+      />
+
+      {/* MENUP FOOTER */}
+      <div
+        style={{
+          marginTop: 48,
+          paddingTop: 16,
+          borderTop: "1px solid #eee",
+          textAlign: "center",
+          opacity: 0.7,
+        }}
+      >
+        <small style={{ display: "block", marginBottom: 6 }}>
+          Made with
+        </small>
+
+        <img
+          src={menupLogo}
+          alt="Menup"
+          style={{ height: 18 }}
+        />
+      </div>
+    </div>
   );
 };
 
