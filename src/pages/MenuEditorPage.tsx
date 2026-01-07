@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useRestaurant } from "../hooks/useRestaurant";
 import MenuPreview from "../components/MenuPreview";
 import { QRCodeCanvas } from "qrcode.react";
-import logo from "../assets/menuo-logo-zz-03.svg"; // adjust if needed
+import logo from "../assets/menuo-logo-zz-03.svg";
 
 type MenuItem = {
   id: string;
@@ -20,6 +20,7 @@ const MenuEditorPage = () => {
 
   const [draftItems, setDraftItems] = useState<MenuItem[]>([]);
   const [publishedItems, setPublishedItems] = useState<MenuItem[]>([]);
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -51,8 +52,7 @@ const MenuEditorPage = () => {
         .from("menu_items")
         .select("*")
         .eq("restaurant_id", restaurant.id)
-        .eq("is_published", true)
-        .eq("is_available", true);
+        .eq("is_published", true);
 
       setDraftItems(drafts || []);
       setPublishedItems(published || []);
@@ -96,9 +96,7 @@ const MenuEditorPage = () => {
       return;
     }
 
-    if (data) {
-      setDraftItems((prev) => [data, ...prev]);
-    }
+    if (data) setDraftItems((prev) => [data, ...prev]);
 
     setForm({
       name: "",
@@ -132,218 +130,204 @@ const MenuEditorPage = () => {
     setDraftItems([]);
     alert("Menu published successfully 🎉");
 
-    const { data: published } = await supabase
+    const { data } = await supabase
       .from("menu_items")
       .select("*")
       .eq("restaurant_id", restaurant.id)
-      .eq("is_published", true)
-      .eq("is_available", true);
+      .eq("is_published", true);
 
-    setPublishedItems(published || []);
+    setPublishedItems(data || []);
+  };
+
+  /* ---------------- EDIT / HIDE LOGIC ---------------- */
+
+  const toggleAvailability = async (item: MenuItem) => {
+    const { error } = await supabase
+      .from("menu_items")
+      .update({ is_available: !item.is_available })
+      .eq("id", item.id);
+
+    if (error) return alert("Failed to update item");
+
+    setPublishedItems((prev) =>
+      prev.map((i) =>
+        i.id === item.id
+          ? { ...i, is_available: !i.is_available }
+          : i
+      )
+    );
+  };
+
+  const saveEdit = async () => {
+    if (!editingItem) return;
+
+    const { error } = await supabase
+      .from("menu_items")
+      .update({
+        name: editingItem.name,
+        price: editingItem.price,
+        description: editingItem.description,
+        category: editingItem.category,
+      })
+      .eq("id", editingItem.id);
+
+    if (error) return alert("Failed to save changes");
+
+    setPublishedItems((prev) =>
+      prev.map((i) =>
+        i.id === editingItem.id ? editingItem : i
+      )
+    );
+
+    setEditingItem(null);
   };
 
   /* ---------------- COPY LINK ---------------- */
 
   const copyMenuLink = async () => {
-    try {
-      await navigator.clipboard.writeText(publicMenuUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      alert("Failed to copy link");
-    }
+    await navigator.clipboard.writeText(publicMenuUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   /* ---------------- UI ---------------- */
 
   return (
     <div className="container py-4">
-      {/* BRAND HEADER */}
+      {/* HEADER */}
       <div className="d-flex align-items-center mb-4">
-        <img
-          src={logo}
-          alt="Menup"
-          style={{ height: 32 }}
-          className="me-3"
-        />
+        <img src={logo} alt="Menup" style={{ height: 32 }} className="me-3" />
         <div>
           <h4 className="mb-0 text-primary">Menu Editor</h4>
           <small className="text-muted">
-            Create, preview & share your restaurant menu
+            Create, preview & manage your menu
           </small>
         </div>
       </div>
 
-      {/* EDITOR SECTION */}
+      {/* EDITOR */}
       <div className="row justify-content-center">
-        {/* ADD MENU ITEM */}
         <div className="col-lg-5">
-          <h5 className="mb-3">Add Menu Item</h5>
-
-          <form
-            onSubmit={handleSubmit}
-            className="card card-body shadow-sm"
-          >
-            <div className="mb-3">
-              <label className="form-label">Name *</label>
-              <input
-                className="form-control"
-                value={form.name}
-                onChange={(e) =>
-                  setForm({ ...form, name: e.target.value })
-                }
-                required
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label">Description</label>
-              <textarea
-                className="form-control"
-                rows={2}
-                value={form.description}
-                onChange={(e) =>
-                  setForm({ ...form, description: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label">Price (GHS) *</label>
-              <input
-                type="number"
-                className="form-control"
-                value={form.price}
-                onChange={(e) =>
-                  setForm({ ...form, price: e.target.value })
-                }
-                required
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label">Category</label>
-              <input
-                className="form-control"
-                value={form.category}
-                onChange={(e) =>
-                  setForm({ ...form, category: e.target.value })
-                }
-                placeholder="Starters, Mains, Drinks..."
-              />
-            </div>
-
-            <div className="form-check mb-3">
-              <input
-                className="form-check-input"
-                type="checkbox"
-                checked={form.isAvailable}
-                onChange={(e) =>
-                  setForm({ ...form, isAvailable: e.target.checked })
-                }
-                id="availableCheck"
-              />
-              <label className="form-check-label" htmlFor="availableCheck">
-                Available
-              </label>
-            </div>
-
-            <button
-              className="btn btn-success w-100"
-              disabled={saving}
-            >
-              {saving ? "Saving..." : "Add Item"}
-            </button>
-
-            {error && <p className="text-danger mt-3">{error}</p>}
+          <h5>Add Menu Item</h5>
+          <form onSubmit={handleSubmit} className="card card-body shadow-sm">
+            <input className="form-control mb-2" placeholder="Name" required
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <textarea className="form-control mb-2" placeholder="Description"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+            <input type="number" className="form-control mb-2" placeholder="Price"
+              value={form.price}
+              onChange={(e) => setForm({ ...form, price: e.target.value })}
+            />
+            <input className="form-control mb-2" placeholder="Category"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+            />
+            <button className="btn btn-success w-100">Add Item</button>
           </form>
         </div>
 
-        {/* DRAFT ITEMS */}
         <div className="col-lg-5">
-          <h5 className="mb-3">Draft Menu Items</h5>
-
-          <div className="d-flex gap-2 mb-3">
-            <button
-              className="btn btn-primary"
-              onClick={publishMenu}
-              disabled={publishing || draftItems.length === 0}
-            >
-              {publishing ? "Publishing..." : "Publish Menu"}
-            </button>
-
-            <button
-              className="btn btn-outline-secondary"
-              onClick={copyMenuLink}
-            >
-              {copied ? "Copied!" : "Copy Menu Link"}
-            </button>
-          </div>
-
-          {draftItems.length === 0 && (
-            <p className="text-muted">No draft items.</p>
-          )}
+          <h5>Draft Items</h5>
+          <button className="btn btn-primary mb-2" onClick={publishMenu}>
+            Publish Menu
+          </button>
 
           <ul className="list-group shadow-sm">
             {draftItems.map((item) => (
               <li key={item.id} className="list-group-item">
-                <div className="d-flex justify-content-between">
-                  <strong>{item.name}</strong>
-                  <span>GHS {item.price}</span>
-                </div>
-
-                {item.description && (
-                  <small className="text-muted d-block">
-                    {item.description}
-                  </small>
-                )}
-
-                <small className="text-muted">
-                  {item.category} •{" "}
-                  {item.is_available ? "Available" : "Unavailable"}
-                </small>
+                <strong>{item.name}</strong> — ₵{item.price}
               </li>
             ))}
           </ul>
         </div>
       </div>
 
+      {/* PUBLISHED ITEMS */}
+      <div className="mt-5">
+        <h4>Published Menu Items</h4>
+        <ul className="list-group">
+          {publishedItems.map((item) => (
+            <li key={item.id} className="list-group-item d-flex justify-content-between">
+              <div>
+                <strong>{item.name}</strong> — ₵{item.price}
+                {!item.is_available && (
+                  <span className="badge bg-warning ms-2">Hidden</span>
+                )}
+              </div>
+              <div className="d-flex gap-2">
+                <button className="btn btn-sm btn-outline-primary" onClick={() => setEditingItem(item)}>
+                  Edit
+                </button>
+                <button className="btn btn-sm btn-outline-warning" onClick={() => toggleAvailability(item)}>
+                  {item.is_available ? "Hide" : "Show"}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
       {/* PREVIEW + SHARE */}
-      <div className="mt-5 pt-4 border-top">
-        <h4 className="mb-3 text-center">
-          Menu Preview (What Customers See)
-        </h4>
+      <div className="mt-5 pt-4 border-top text-center">
+        <MenuPreview
+          restaurantName={restaurant.name}
+          restaurantDescription={restaurant.description}
+          menuItems={publishedItems.filter((i) => i.is_available)}
+        />
 
-        {publishedItems.length === 0 ? (
-          <p className="text-muted text-center">
-            No published items yet. Publish your menu to see a preview.
-          </p>
-        ) : (
-          <div className="d-flex justify-content-center">
-            <MenuPreview
-              restaurantName={restaurant.name}
-              restaurantDescription={restaurant.description}
-              menuItems={publishedItems}
-            />
-          </div>
-        )}
-
-        <div className="mt-4 d-flex justify-content-center">
-          <div className="p-3 border rounded d-flex gap-4 align-items-center flex-wrap">
-            <div>
-              <h6 className="text-muted mb-2">Share your menu</h6>
-              <button
-                className="btn btn-outline-primary"
-                onClick={copyMenuLink}
-              >
-                Copy Menu Link
-              </button>
-            </div>
-
-            <QRCodeCanvas value={publicMenuUrl} size={140} />
-          </div>
+        <div className="mt-3 d-flex justify-content-center gap-4">
+          <button className="btn btn-outline-primary" onClick={copyMenuLink}>
+            {copied ? "Copied!" : "Copy Menu Link"}
+          </button>
+          <QRCodeCanvas value={publicMenuUrl} size={140} />
         </div>
       </div>
+
+      {/* EDIT MODAL */}
+      {editingItem && (
+        <div className="modal fade show d-block">
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5>Edit Item</h5>
+                <button className="btn-close" onClick={() => setEditingItem(null)} />
+              </div>
+              <div className="modal-body">
+                <input className="form-control mb-2"
+                  value={editingItem.name}
+                  onChange={(e) =>
+                    setEditingItem({ ...editingItem, name: e.target.value })
+                  }
+                />
+                <input type="number" className="form-control mb-2"
+                  value={editingItem.price}
+                  onChange={(e) =>
+                    setEditingItem({ ...editingItem, price: Number(e.target.value) })
+                  }
+                />
+                <textarea className="form-control"
+                  value={editingItem.description || ""}
+                  onChange={(e) =>
+                    setEditingItem({ ...editingItem, description: e.target.value })
+                  }
+                />
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setEditingItem(null)}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary" onClick={saveEdit}>
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
